@@ -19,18 +19,19 @@ int check_option(char **args){
     while(args[i] != NULL){
         if(args[i][0] == '-'){
             for(int j = 1; args[i][j] != '\0'; j++){
-                if(args[i][j] == 'i'){
-                    option_i = 1;
-                }
-                else if(args[i][j] == 'l'){
-                    option_l = 1;
-                }
-                else if(args[i][j] == 'R'){
-                    option_R = 1;
-                }
-                else{
-                    fprintf(stderr, "Error: Unsupported Option\n");
-                    exit(1);
+                switch (args[i][j]) {
+                    case 'i':
+                        option_i = 1;
+                        break;
+                    case 'l':
+                        option_l = 1;
+                        break;
+                    case 'R':
+                        option_R = 1;
+                        break;
+                    default:
+                        fprintf(stderr, "Error: Unsupported Option\n");
+                        exit(1);
                 }
             }
         }
@@ -71,60 +72,18 @@ int check_file(char *path){
 
 // Check permissions for a directory or not
 char *getpermission(mode_t mode){
-    char *perm = calloc(sizeof(char),10);
-    if(S_ISDIR(mode)){
-        strcat(perm,"d");
-    }else{
-        strcat(perm,"-");
-    }
-    // Check permissions for Owner
-    if(mode & S_IRUSR){
-        strcat(perm,"r");
-    }else{
-        strcat(perm,"-");
-    }
-    if(mode & S_IWUSR){
-        strcat(perm,"w");
-    }else{
-        strcat(perm,"-");
-    }
-    if(mode & S_IXUSR){
-        strcat(perm,"x");
-    }else{
-        strcat(perm,"-");
-    }
-    // Check permissions for Group
-    if(mode & S_IRGRP){
-        strcat(perm,"r");
-    }else{
-        strcat(perm,"-");
-    }
-    if(mode & S_IWGRP){
-        strcat(perm,"w");
-    }else{
-        strcat(perm,"-");
-    }
-    if(mode & S_IXGRP){
-        strcat(perm,"x");
-    }else{
-        strcat(perm,"-");
-    }
-    // Check permissions for other
-    if(mode & S_IROTH){
-        strcat(perm,"r");
-    }else{
-        strcat(perm,"-");
-    }
-    if(mode & S_IWOTH){
-        strcat(perm,"w");
-    }else{
-        strcat(perm,"-");
-    }
-    if(mode & S_IXOTH){
-        strcat(perm,"x");
-    }else{
-        strcat(perm,"-");
-    }
+    char *perm = calloc(sizeof(char), 11); // Increase the size to handle the null terminator
+    snprintf(perm, 11, "%c%c%c%c%c%c%c%c%c%c",
+             (S_ISDIR(mode) ? 'd' : '-'),
+             (mode & S_IRUSR ? 'r' : '-'),
+             (mode & S_IWUSR ? 'w' : '-'),
+             (mode & S_IXUSR ? 'x' : '-'),
+             (mode & S_IRGRP ? 'r' : '-'),
+             (mode & S_IWGRP ? 'w' : '-'),
+             (mode & S_IXGRP ? 'x' : '-'),
+             (mode & S_IROTH ? 'r' : '-'),
+             (mode & S_IWOTH ? 'w' : '-'),
+             (mode & S_IXOTH ? 'x' : '-'));
     return perm;
 }
 
