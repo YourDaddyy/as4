@@ -10,7 +10,7 @@
 #include <time.h>
 
 #define MAX_PATH_LENGTH 1024
-int option_i, option_l, option_R, no_option; 
+int option_i, option_l, option_R; 
 int numPaths, newline;
 
 //read options and return the index of the first path
@@ -47,17 +47,40 @@ int check_option(char **args){
 // read path into paths string array
 void find_path(char **args, char **paths, int path_index){
     int i = path_index;
-    if(numPaths == 0){
-        paths[numPaths] = calloc(sizeof(char), 2);
-        strcpy(paths[numPaths], ".");
-        numPaths++;
-    }else if(numPaths >= 1){
-        while(args[i] != NULL){
-            paths[numPaths] = calloc(sizeof(char), MAX_PATH_LENGTH);
-            strcpy(paths[numPaths], args[i]);
-            numPaths++;
-            i++;
+    while(args[i] != NULL){
+        // Special path handling
+        if (strcmp(args[i], ".") == 0) {
+            printf("Handling %s\n", args[i]);
+            char cwd[1024];
+            getcwd(cwd, sizeof(cwd));
+            paths[numPaths] = strdup(cwd);
+        } else if (strcmp(args[i], "..") == 0) {
+            printf("Handling %s\n", args[i]);
+            char cwd[1024];
+            getcwd(cwd, sizeof(cwd));
+            char *last_slash = strrchr(cwd, '/');
+            if (last_slash != NULL) {
+                *last_slash = '\0';
+            }
+            paths[numPaths] = strdup(cwd);
+        } else if (strcmp(args[i], "~") == 0) {
+            printf("Handling %s\n", args[i]);
+            char *home = getenv("HOME");
+            if (home != NULL) {
+                paths[numPaths] = calloc(sizeof(char), MAX_PATH_LENGTH);
+                strncpy(paths[numPaths], home, MAX_PATH_LENGTH);
+                strncat(paths[numPaths], args[i] + 1, MAX_PATH_LENGTH - strlen(paths[numPaths]) - 1);
+            } else {
+                paths[numPaths] = strdup(args[i]);
+            }
+        } else if (strcmp(args[i], "*") == 1) {
+            // wildcard not handled
+            printf("Handling %s\n", args[i]);
+        } else {
+            paths[numPaths] = strdup(args[i]);
         }
+        numPaths++;
+        i++;
     }
 }
 
@@ -134,29 +157,23 @@ void print_option(struct dirent **dirlist, int size, char *dir){
                 }
                 //changing text clr to cyan for directories to emulate ls behaviour
                 if(option_i){
-                    printf("  %ld ", sb.st_ino);
+                    printf("%ld\t", sb.st_ino);
                 }
                 if(option_l){
-                    printf("%s %li %s %s %5ld %s ", permission, sb.st_nlink, pw->pw_name, grp->gr_name, sb.st_size, time);
+                    printf("%s\t%li\t%s\t%s\t%5ld\t%s ", permission, sb.st_nlink, pw->pw_name, grp->gr_name, sb.st_size, time);
                 }
                 printf("\033[1;34m");
-                printf("%s  ", dirlist[i]->d_name);
+                printf("%s\n", dirlist[i]->d_name);
                 printf("\033[0m");
-                if(!no_option){
-                    printf("\n");
-                }
             } else {
                 if(option_i){
-                    printf("  %ld ", sb.st_ino);
+                    printf("%ld\t", sb.st_ino);
                 }
                 if(option_l){
-                    printf("%s %li %s %s %5ld %s ", permission, sb.st_nlink, pw->pw_name, grp->gr_name, sb.st_size,
+                    printf("%s\t%li\t%s\t%s\t%5ld\t%s ", permission, sb.st_nlink, pw->pw_name, grp->gr_name, sb.st_size,
                            time);
                 }
-                printf("%s  ",dirlist[i]->d_name);
-                if(!no_option){
-                    printf("\n");
-                }
+                printf("%s\n",dirlist[i]->d_name);
             }
             free(permission);
             free(path);
@@ -165,7 +182,9 @@ void print_option(struct dirent **dirlist, int size, char *dir){
         i++;
     }
     free(dirlist);
-    printf("\n");
+    if(i < size - 1){
+        printf("\n");
+    }
     if(option_R){
         // Dirrecursor(list_dir,listc);
         // recursive_print(list_dir,listc);
@@ -175,7 +194,7 @@ void print_option(struct dirent **dirlist, int size, char *dir){
                 perror("scandir");
                 continue;
             }
-            printf("%s:\n",list_dir[i]);
+            printf("\n%s:\n",list_dir[i]);
             print_option(dirlist, n, list_dir[i]);
         }
     }
@@ -194,9 +213,9 @@ void print_file(char *file) {
     if (option_R) flag |= 4;
 
     if (flag == 0 || flag == 4) {
-        printf("%s ", file);
+        printf("%s\t\n", file);
     } else if (flag == 1 || flag == 5) {
-        printf("  %ld %s\n", sb.st_ino, file);
+        printf("%ld\t%s\n", sb.st_ino, file);
     } else if (flag == 2 || flag == 6) {
         char *permission = getpermission(sb.st_mode);
         struct passwd *pw = getpwuid(sb.st_uid);
@@ -206,7 +225,7 @@ void print_file(char *file) {
         tim = localtime(&tme);
         char time[256];
         strftime(time, sizeof(time), "%b %d %Y %H:%M", tim);
-        printf("%s %li %s %s %5ld %s %s\n", permission, sb.st_nlink, pw->pw_name, grp->gr_name, sb.st_size, time, file);
+        printf("%s\t%li\t%s\t%s\t%5ld\t%s\t%s\n", permission, sb.st_nlink, pw->pw_name, grp->gr_name, sb.st_size, time, file);
         free(permission);
     } else if (flag == 3 || flag == 7) {
         char *permission = getpermission(sb.st_mode);
@@ -217,24 +236,35 @@ void print_file(char *file) {
         tim = localtime(&tme);
         char time[256];
         strftime(time, sizeof(time), "%b %d %Y %H:%M", tim);
-        printf("%ld %s %li %s %s %5ld %s %s\n", sb.st_ino, permission, sb.st_nlink, pw->pw_name, grp->gr_name, sb.st_size, time, file);
+        printf("%ld\t%s\t%li\t%s\t%s\t%5ld\t%s\t%s\n", sb.st_ino, permission, sb.st_nlink, pw->pw_name, grp->gr_name, sb.st_size, time, file);
         free(permission);
     }
 }
 
 int main(int argc, char *argv[]) {
+
+    // for (int i = 0; i < argc; i++) {
+    //     printf("argv[%d]: %s\n", i, argv[i]);
+    // }
     
     struct dirent **dirlist;
     int n = 0;
 
-    option_i = option_l = option_R = no_option = 0;
+    option_i = option_l = option_R = 0;
     numPaths = newline = 0;
 
     char *paths[argc];
     
     // Parse options
     int path_index = check_option(argv);
-    find_path(argv, paths, path_index);
+    if(path_index == 0){
+        paths[numPaths] = calloc(sizeof(char), 2);
+        strcpy(paths[numPaths], ".");
+        numPaths++;
+    }else{
+        find_path(argv, paths, path_index);
+    }
+    
 
     int i = 0;
     while (i < numPaths) {
@@ -243,10 +273,7 @@ int main(int argc, char *argv[]) {
             print_file(paths[i]);
             i++;
             newline = 1;
-            //formatter
-            if(i == numPaths){
-                printf("\n");
-            }
+            // printf("\n");
             continue;
         }
         //if it is a directory, print its contents
@@ -259,18 +286,24 @@ int main(int argc, char *argv[]) {
             printf("ERROR: Invalid file/directory: %s\n", paths[i++]);
             continue;
         }
-
+        
         // formatters
         if(newline == 1){
             printf("\n");
             newline = 0;
         }
-
-        if(option_i == 0 && option_l == 0 && option_R == 0){
-            no_option = 1;
+        
+        if(path_index!=0){
+            printf("%s:\n",paths[i]);
         }
         print_option(dirlist, n, paths[i]);
+        if(i < numPaths - 1){
+            printf("\n");
+        }
         i++;
+    }
+    for (int i = 0; i < argc; i++) {
+        free(paths[i]);
     }
 
     return 0;
