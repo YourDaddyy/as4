@@ -1,27 +1,26 @@
 {
-    "version": "0.2.0",
-    "configurations": [
+  "version": "0.2.0",
+  "configurations": [
       {
-        "name": "(gdb) Debug myls with -R",
-        "type": "cppdbg",
-        "request": "launch",
-        "program": "${workspaceFolder}/myls",
-        "args": ["-R", "."], // Replace "." with the directory you want to list recursively
-        "stopAtEntry": false,
-        "cwd": "${workspaceFolder}",
-        "environment": [],
-        "externalConsole": true,
-        "MIMode": "gdb",
-        "setupCommands": [
-          {
-            "description": "Enable pretty-printing for gdb",
-            "text": "-enable-pretty-printing",
-            "ignoreFailures": true
-          }
-        ]
+          "name": "Debug myls",
+          "type": "cppdbg",
+          "request": "launch",
+          "program": "${workspaceFolder}/myls",
+          "args": ["-i"], // Add your arguments here
+          "stopAtEntry": false,
+          "cwd": "${workspaceFolder}",
+          "environment": [],
+          "externalConsole": false,
+          "MIMode": "gdb",
+          "setupCommands": [
+              {
+                  "description": "Enable pretty-printing for gdb",
+                  "text": "-enable-pretty-printing",
+                  "ignoreFailures": true
+              }
+          ],
+          "preLaunchTask": "build myls", // If you have a task to build your project, specify it here
+          "miDebuggerPath": "/usr/bin/gdb" // Path to your gdb debugger
       }
-    ]
-  }
-  
-  
-  
+  ]
+}

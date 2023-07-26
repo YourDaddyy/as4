@@ -9,9 +9,16 @@
 #include <grp.h>
 #include <time.h>
 
-#define MAX_PATH_LENGTH 1024
+#define PATH_LENGTH 1024
+typedef int (*compare_func)(const struct dirent**, const struct dirent**);
+
 int option_i, option_l, option_R; 
 int numPaths, newline;
+
+// Custom comparison function for scandir to sort entries alphabetically
+int custom_sort(const struct dirent **a, const struct dirent **b) {
+    return strcasecmp((*a)->d_name, (*b)->d_name);
+}
 
 //read options and return the index of the first path
 int check_option(char **args){
@@ -67,9 +74,9 @@ void find_path(char **args, char **paths, int path_index){
             printf("Handling %s\n", args[i]);
             char *home = getenv("HOME");
             if (home != NULL) {
-                paths[numPaths] = calloc(sizeof(char), MAX_PATH_LENGTH);
-                strncpy(paths[numPaths], home, MAX_PATH_LENGTH);
-                strncat(paths[numPaths], args[i] + 1, MAX_PATH_LENGTH - strlen(paths[numPaths]) - 1);
+                paths[numPaths] = calloc(sizeof(char), PATH_LENGTH);
+                strncpy(paths[numPaths], home, PATH_LENGTH);
+                strncat(paths[numPaths], args[i] + 1, PATH_LENGTH - strlen(paths[numPaths]) - 1);
             } else {
                 paths[numPaths] = strdup(args[i]);
             }
@@ -84,6 +91,7 @@ void find_path(char **args, char **paths, int path_index){
     }
 }
 
+//Check if the path is a file or directory
 int check_file(char *path){
     struct stat path_stat;
     if (stat(path, &path_stat) != 0) {
@@ -110,6 +118,7 @@ char *getpermission(mode_t mode){
     return perm;
 }
 
+//Print the contents of a directory based on the options
 void print_option(struct dirent **dirlist, int size, char *dir){
     int i = 0,listc = 0;
     char *list_dir[100];
@@ -189,7 +198,7 @@ void print_option(struct dirent **dirlist, int size, char *dir){
         // Dirrecursor(list_dir,listc);
         // recursive_print(list_dir,listc);
         for (i = 0; i < listc; i++) {
-            int n = scandir(list_dir[i], &dirlist, 0, alphasort);
+            int n = scandir(list_dir[i], &dirlist, 0, (compare_func)custom_sort);
             if (n == -1) {
                 perror("scandir");
                 continue;
@@ -200,6 +209,7 @@ void print_option(struct dirent **dirlist, int size, char *dir){
     }
 }
 
+//Print the file based on the options
 void print_file(char *file) {
     struct stat sb;
     if (stat(file, &sb) == -1) {
@@ -243,10 +253,6 @@ void print_file(char *file) {
 
 int main(int argc, char *argv[]) {
 
-    // for (int i = 0; i < argc; i++) {
-    //     printf("argv[%d]: %s\n", i, argv[i]);
-    // }
-    
     struct dirent **dirlist;
     int n = 0;
 
@@ -277,13 +283,13 @@ int main(int argc, char *argv[]) {
             continue;
         }
         //if it is a directory, print its contents
-        n = scandir(paths[i], &dirlist, 0, alphasort);
+        n = scandir(paths[i], &dirlist, 0, (compare_func)custom_sort);
         if (n == -1) {
             if(paths[i][0] == '-'){
                 printf("ERROR: File options should enter before path\n");
                 exit(0);
             }
-            printf("ERROR: Invalid file/directory: %s\n", paths[i++]);
+            printf("Error : Nonexistent files or directories\n");
             continue;
         }
         
