@@ -20,6 +20,13 @@ int custom_sort(const struct dirent **a, const struct dirent **b) {
     return strcasecmp((*a)->d_name, (*b)->d_name);
 }
 
+// Resolve symbolic link and get the actual path
+char *resolve_symbolic_link(const char *path) {
+    char resolved_path[PATH_LENGTH];
+    realpath(path, resolved_path);
+    return strdup(resolved_path);
+}
+
 //read options and return the index of the first path
 int check_option(char **args){
     int i = 1;
@@ -57,12 +64,12 @@ void find_path(char **args, char **paths, int path_index){
     while(args[i] != NULL){
         // Special path handling
         if (strcmp(args[i], ".") == 0) {
-            printf("Handling %s\n", args[i]);
+
             char cwd[1024];
             getcwd(cwd, sizeof(cwd));
             paths[numPaths] = strdup(cwd);
         } else if (strcmp(args[i], "..") == 0) {
-            printf("Handling %s\n", args[i]);
+
             char cwd[1024];
             getcwd(cwd, sizeof(cwd));
             char *last_slash = strrchr(cwd, '/');
@@ -71,7 +78,7 @@ void find_path(char **args, char **paths, int path_index){
             }
             paths[numPaths] = strdup(cwd);
         } else if (strcmp(args[i], "~") == 0) {
-            printf("Handling %s\n", args[i]);
+
             char *home = getenv("HOME");
             if (home != NULL) {
                 paths[numPaths] = calloc(sizeof(char), PATH_LENGTH);
@@ -82,7 +89,7 @@ void find_path(char **args, char **paths, int path_index){
             }
         } else if (strcmp(args[i], "*") == 1) {
             // wildcard not handled
-            printf("Handling %s\n", args[i]);
+
         } else {
             paths[numPaths] = strdup(args[i]);
         }
@@ -94,11 +101,11 @@ void find_path(char **args, char **paths, int path_index){
 //Check if the path is a file or directory
 int check_file(char *path){
     struct stat path_stat;
-    if (stat(path, &path_stat) != 0) {
+    if (lstat(path, &path_stat) != 0) {
         fprintf(stderr, "Error: Nonexistent files or directories\n");
         exit(1);
     }
-    return S_ISREG(path_stat.st_mode);
+    return S_ISREG(path_stat.st_mode) || S_ISLNK(path_stat.st_mode);
 }
 
 // Check permissions for a directory or not
@@ -120,6 +127,7 @@ char *getpermission(mode_t mode){
 
 //Print the contents of a directory based on the options
 void print_option(struct dirent **dirlist, int size, char *dir){
+    
     int i = 0,listc = 0;
     char *list_dir[100];
     while(i<size){
@@ -156,30 +164,41 @@ void print_option(struct dirent **dirlist, int size, char *dir){
                 
                 strftime(time, sizeof(time), "%b %d %Y %H:%M", tim);
             }
+            if (dirlist[i]->d_type == DT_LNK) {
+                if(option_i){
+                    printf("%ld\t", sb.st_ino);
+                }
+                if (option_l) {
+                    char *link_path = resolve_symbolic_link(path);
+                    printf("%s %li %s %s\t%5ld\t%s ", permission, sb.st_nlink, pw->pw_name, grp->gr_name, sb.st_size, time);
+                    printf("%s -> %s\n", dirlist[i]->d_name, link_path);
+                    free(link_path);
+                } else {
+                    printf("%s\n", dirlist[i]->d_name);
+                }
 
-            if (dirlist[i]->d_type == DT_DIR) {
+            }else if (dirlist[i]->d_type == DT_DIR) {
                 if(option_R){
                     list_dir[listc] = calloc(sizeof(char), 1024);
                     strcat(list_dir[listc], dir);
                     strcat(list_dir[listc], "/");
                     strcat(list_dir[listc++], dirlist[i]->d_name);
                 }
-                //changing text clr to cyan for directories to emulate ls behaviour
                 if(option_i){
                     printf("%ld\t", sb.st_ino);
                 }
                 if(option_l){
-                    printf("%s\t%li\t%s\t%s\t%5ld\t%s ", permission, sb.st_nlink, pw->pw_name, grp->gr_name, sb.st_size, time);
+                    printf("%s %li %s %s\t%5ld\t%s ", permission, sb.st_nlink, pw->pw_name, grp->gr_name, sb.st_size, time);
                 }
-                printf("\033[1;34m");
+
                 printf("%s\n", dirlist[i]->d_name);
-                printf("\033[0m");
+
             } else {
                 if(option_i){
                     printf("%ld\t", sb.st_ino);
                 }
                 if(option_l){
-                    printf("%s\t%li\t%s\t%s\t%5ld\t%s ", permission, sb.st_nlink, pw->pw_name, grp->gr_name, sb.st_size,
+                    printf("%s %li %s %s\t%5ld\t%s ", permission, sb.st_nlink, pw->pw_name, grp->gr_name, sb.st_size,
                            time);
                 }
                 printf("%s\n",dirlist[i]->d_name);
@@ -211,8 +230,9 @@ void print_option(struct dirent **dirlist, int size, char *dir){
 
 //Print the file based on the options
 void print_file(char *file) {
+    // printf("print file from command line\n");
     struct stat sb;
-    if (stat(file, &sb) == -1) {
+    if (lstat(file, &sb) == -1) {
         perror("ERROR: stat\n");
         exit(0);
     }
@@ -235,7 +255,7 @@ void print_file(char *file) {
         tim = localtime(&tme);
         char time[256];
         strftime(time, sizeof(time), "%b %d %Y %H:%M", tim);
-        printf("%s\t%li\t%s\t%s\t%5ld\t%s\t%s\n", permission, sb.st_nlink, pw->pw_name, grp->gr_name, sb.st_size, time, file);
+        printf("%s %li %s %s\t%5ld\t%s %s", permission, sb.st_nlink, pw->pw_name, grp->gr_name, sb.st_size, time, file);
         free(permission);
     } else if (flag == 3 || flag == 7) {
         char *permission = getpermission(sb.st_mode);
@@ -246,9 +266,21 @@ void print_file(char *file) {
         tim = localtime(&tme);
         char time[256];
         strftime(time, sizeof(time), "%b %d %Y %H:%M", tim);
-        printf("%ld\t%s\t%li\t%s\t%s\t%5ld\t%s\t%s\n", sb.st_ino, permission, sb.st_nlink, pw->pw_name, grp->gr_name, sb.st_size, time, file);
+        printf("%ld %s %li %s %s\t%5ld\t%s %s", sb.st_ino, permission, sb.st_nlink, pw->pw_name, grp->gr_name, sb.st_size, time, file);
         free(permission);
     }
+    // Check if it is a symbolic link
+    if (S_ISLNK(sb.st_mode) && option_l) {
+        char resolved_path[PATH_LENGTH];
+        ssize_t resolved_len = readlink(file, resolved_path, sizeof(resolved_path) - 1);
+        if (resolved_len == -1) {
+            perror("ERROR: readlink\n");
+            return;
+        }
+        resolved_path[resolved_len] = '\0';
+        printf(" -> %s", resolved_path);
+    }
+    printf("\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -270,7 +302,6 @@ int main(int argc, char *argv[]) {
     }else{
         find_path(argv, paths, path_index);
     }
-    
 
     int i = 0;
     while (i < numPaths) {
@@ -289,7 +320,7 @@ int main(int argc, char *argv[]) {
                 printf("ERROR: File options should enter before path\n");
                 exit(0);
             }
-            printf("Error : Nonexistent files or directories\n");
+            printf("Error: Nonexistent files or directories\n");
             continue;
         }
         
